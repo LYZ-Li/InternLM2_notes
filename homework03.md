@@ -1,6 +1,14 @@
 [基础作业](#基础作业)
 - [在茴香豆 Web 版中创建自己领域的知识问答助手](#作业1)
-- [在 `InternLM Studio` 上部署茴香豆技术助手](#作业2)
+- [在 `InternLM Studio` 上部署茴香豆技术助手](#作业2)  
+
+[进阶作业](#进阶)
+- [3.1 加入网络搜索](#作业3)
+- [3.2 使用远程模型](#作业4)
+- [3.3 利用 Gradio 搭建网页 Demo](#作业5)
+- [3.4 接入微信 tbd](#作业6)
+- [3.5 接入飞书 tbd](#作业7)  
+
 
 # 第三课作业
 > ## 基础作业 - 任意选一个作业
@@ -215,3 +223,107 @@ python3 -m huixiangdou.main --standalone
 
 ```
 ![运行茴香豆](images/image_03_05.png)
+
+# 进阶
+<h2 id="作业3">3.1 加入网络搜索</h2>
+
+茴香豆除了可以从本地向量数据库中检索内容进行回答，也可以加入网络的搜索结果，生成回答。 
+
+开启网络搜索功能需要用到 **Serper** 提供的 API：
+
+1. 登录 [Serper](https://serper.dev/) ，注册：
+
+2. 进入 [Serper API](https://serper.dev/api-key) 界面，复制自己的 API-key：
+
+
+3. 替换 `/huixiangdou/config.ini` 中的 ***${YOUR-API-KEY}*** 为自己的API-key：
+
+```
+[web_search]
+# check https://serper.dev/api-key to get a free API key
+x_api_key = "${YOUR-API-KEY}"
+domain_partial_order = ["openai.com", "pytorch.org", "readthedocs.io", "nvidia.com", "stackoverflow.com", "juejin.cn", "zhuanlan.zhihu.com", "www.cnblogs.com"]
+save_dir = "logs/web_search_result"
+```
+其中 `domain_partial_order` 可以设置网络搜索的范围。
+
+<h2 id="作业4">3.2 使用远程模型</h2>
+茴香豆除了可以使用本地大模型，还可以轻松的调用云端模型 API。
+
+目前，茴香豆已经支持 `Kimi`，`GPT-4`，`Deepseek` 和 `GLM` 等常见大模型API。
+
+想要使用远端大模型，首先修改 `/huixiangdou/config.ini` 文件中
+
+```
+enable_local = 0 # 关闭本地模型
+enable_remote = 1 # 启用云端模型
+```
+接着，如下图所示，修改 `remote_` 相关配置，填写 API key、模型类型等参数。
+
+![Image](images/image_03_13.png)
+
+
+| 远端模型配置选项 | GPT | Kimi | Deepseek | ChatGLM | xi-api | alles-apin |
+|---|---|---|---|---|---|---|
+| `remote_type`| gpt | kimi | deepseek | zhipuai | xi-api | alles-apin |
+| `remote_llm_max_text_length` 最大值 | 192000 | 128000 | 16000 | 128000 | 192000 | - |
+| `remote_llm_model` | "gpt-4-0613"| "moonshot-v1-128k" | "deepseek-chat" | "glm-4" | "gpt-4-0613" | - |
+
+
+启用远程模型可以大大降低GPU显存需求，根据测试，采用远程模型的茴香豆应用，最小只需要2G显存即可。
+
+需要注意的是，这里启用的远程模型，只用在问答分析和问题生成，依然需要本地嵌入、重排序模型进行特征提取。
+
+也可以尝试同时开启 local 和 remote 模型，茴香豆将采用混合模型的方案，详见 [技术报告](https://arxiv.org/abs/2401.08772)，效果更好。
+
+[茴香豆 Web 版](https://openxlab.org.cn/apps/detail/tpoisonooo/huixiangdou-web) 在 **OpenXLab** 上部署了混合模型的 Demo，可上传自己的语料库测试效果。
+
+<h2 id="作业5">3.3 利用 Gradio 搭建网页 Demo</h2>
+让我们用 **Gradio** 搭建一个自己的网页对话 Demo，来看看效果。
+
+ 1. 首先，安装 **Gradio** 依赖组件：
+
+```bash
+pip install gradio==4.25.0 redis==5.0.3 flask==3.0.2 lark_oapi==1.2.4
+```
+  2. 运行脚本，启动茴香豆对话 Demo 服务：
+
+```bash
+cd /root/huixiangdou
+python3 -m tests.test_query_gradio 
+
+```
+
+此时服务器端接口已开启。  
+    在命令行中输入如下命令，命令行会提示输入密码：
+```
+ssh -CNg -L 7860:127.0.0.1:7860 root@ssh.intern-ai.org.cn -p <你的端口号>
+```
+3. 复制开发机密码到命令行中，按回车，建立开发机到本地到端口映射。
+
+
+4. 在本地浏览器中输入 [127.0.0.1:7860](http://127.0.0.1:7860/) 进入 **Gradio** 对话 Demo 界面，开始对话。
+
+![](images/image_03_11.png)
+
+如果需要更换检索的知识领域，只需要用新的语料知识重复步骤 [2.2 创建知识库](#22-创建知识库) 提取特征到新的向量数据库，更改 `huixiangdou/config.ini` 文件中 `work_dir = "新向量数据库路径"`；
+
+或者运行： 
+
+```
+python3 -m tests.test_query_gradi --work_dir <新向量数据库路径>
+```
+使用以下语句上传本地文件到开发机：
+```bash
+scp -P <你的端口号> /path/to/local/file root@ssh.intern-ai.org.cn:/root/huixiangdou/data 
+```
+<h2 id="作业6">3.4 接入微信</h2>
+参考链接：[茴香豆零编程接入微信](https://zhuanlan.zhihu.com/p/686579577)  
+<p style="font-size: 24px; color: red; animation: blink 1s infinite;">
+  微信一生黑
+</p>
+
+<h2 id="作业6">3.5 接入飞书</h2>
+<p style="font-size: 24px; color: red; animation: blink 1s infinite;">
+  tbd
+</p>
