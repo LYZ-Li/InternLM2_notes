@@ -628,7 +628,7 @@ tiktoken
 git
 git-lfs
 ```
-在`app.py`文件中写入一个简单的前端
+在`app.py`文件中写入一下内容。**如果Quota不够不能申请到GPU，则需要修改代码，加载模型到CPU**
 ```bash
 import gradio as gr
 import os
@@ -642,7 +642,8 @@ os.system(f'git clone https://code.openxlab.org.cn/YZ-Li/XTuner_Demo.git {base_p
 os.system(f'cd {base_path} && git lfs pull')
 
 tokenizer = AutoTokenizer.from_pretrained(base_path,trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(base_path,trust_remote_code=True, torch_dtype=torch.float16).cuda()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = AutoModelForCausalLM.from_pretrained(base_path,trust_remote_code=True, torch_dtype=torch.float16).to(device)
 
 def chat(message,history):
     for response,history in model.stream_chat(tokenizer,message,history,max_length=2048,top_p=0.7,temperature=1):
@@ -665,6 +666,131 @@ git push
 ```
 我的[Frontend Demo](https://github.com/LYZ-Li/XTuner_Demo_Frontend.git)的Github仓库。
 #### 4. 部署应用
+https://openxlab.org.cn/apps/detail/YZ-Li/LYZ_XTuner_demo
 ![](images/image_04_23.png)
+![](images/image_04_24.png)
 
 ### 复现多模态微调
+<span style="color: red;">**本部分需要的GPU资源为24GB(30% 的 A100)**</span>
+
+#### 1. 安装环境
+沿用上面的环境和1.8B模型
+```bash
+conda activate xtuner0.1.17
+```
+#### 2. Pretrain阶段
+> 这一阶段使用”title +image“的海量数据做训练，对显存要求极其高。目的是让语言模型”睁开眼睛，看懂图片“
+
+#### 2. Finetune阶段
+> 预训练后的`Image Projecter`只能看到图片，但是不能针对User的问题做出合理准确的回答。
+
+##### 2.1 生成数据
+
+```bash
+cd ~ && git clone https://github.com/InternLM/tutorial -b camp2 && conda activate xtuner0.1.17 && cd tutorial
+
+python /root/tutorial/xtuner/llava/llava_data/repeat.py \
+  -i /root/tutorial/xtuner/llava/llava_data/unique_data.json \
+  -o /root/tutorial/xtuner/llava/llava_data/repeated_data.json \
+  -n 200
+```
+我是懒狗🐕我使用准备好的config文件
+```bash
+cp /root/tutorial/xtuner/llava/llava_data/internlm2_chat_1_8b_llava_tutorial_fool_config.py /root/tutorial/xtuner/llava/llava_internlm2_chat_1_8b_qlora_clip_vit_large_p14_336_lora_e1_gpu8_finetune_copy.py
+```
+
+
+
+<details>
+<summary>配置文件修改详情</summary>
+
+- pretrained_pth  
+- llm_name_or_path  
+- visual_encoder_name_or_path  
+- data_root  
+- data_path  
+- image_folder  
+
+```diff
+# Model
+- llm_name_or_path = 'internlm/internlm2-chat-1_8b'
++ llm_name_or_path = '/root/share/new_models/Shanghai_AI_Laboratory/internlm2-chat-1_8b'
+- visual_encoder_name_or_path = 'openai/clip-vit-large-patch14-336'
++ visual_encoder_name_or_path = '/root/share/new_models/openai/clip-vit-large-patch14-336'
+
+# Specify the pretrained pth
+- pretrained_pth = './work_dirs/llava_internlm2_chat_1_8b_clip_vit_large_p14_336_e1_gpu8_pretrain/iter_2181.pth'  # noqa: E501
++ pretrained_pth = '/root/share/new_models/xtuner/iter_2181.pth'
+
+# Data
+- data_root = './data/llava_data/'
++ data_root = '/root/tutorial/xtuner/llava/llava_data/'
+- data_path = data_root + 'LLaVA-Instruct-150K/llava_v1_5_mix665k.json'
++ data_path = data_root + 'repeated_data.json'
+- image_folder = data_root + 'llava_images'
++ image_folder = data_root
+
+# Scheduler & Optimizer
+- batch_size = 16  # per_device
++ batch_size = 1  # per_device
+
+
+# evaluation_inputs
+- evaluation_inputs = ['请描述一下这张图片','Please describe this picture']
++ evaluation_inputs = ['Please describe this picture','What is the equipment in the image?']
+
+```
+</details>
+
+##### 2.2开始Finetune
+```bash
+# 修改对应的版本
+pip install transformers==4.36.0
+cd /root/tutorial/xtuner/llava/
+xtuner train /root/tutorial/xtuner/llava/llava_internlm2_chat_1_8b_qlora_clip_vit_large_p14_336_lora_e1_gpu8_finetune_copy.py --deepspeed deepspeed_zero2
+```
+
+#### 3. 对比Finetune前后
+##### 3.1 Finetune前：只会打标题
+```bash
+# 解决小bug
+export MKL_SERVICE_FORCE_INTEL=1
+export MKL_THREADING_LAYER=GNU
+
+# pth转huggingface
+xtuner convert pth_to_hf \
+  /root/tutorial/xtuner/llava/llava_internlm2_chat_1_8b_qlora_clip_vit_large_p14_336_lora_e1_gpu8_finetune_copy.py \
+  /root/share/new_models/xtuner/iter_2181.pth \
+  /root/tutorial/xtuner/llava/llava_data/iter_2181_hf
+
+# 启动！
+xtuner chat /root/share/new_models/Shanghai_AI_Laboratory/internlm2-chat-1_8b \
+  --visual-encoder /root/share/new_models/openai/clip-vit-large-patch14-336 \
+  --llava /root/tutorial/xtuner/llava/llava_data/iter_2181_hf \
+  --prompt-template internlm2_chat \
+  --image /root/tutorial/xtuner/llava/llava_data/test_img/oph.jpg
+```
+  
+![](images/oph.jpg)
+![](images/image_04_25.png)
+  ##### 3.2 Finetune后：能回答问题
+  ```bash
+# 解决小bug
+# 解决小bug
+export MKL_SERVICE_FORCE_INTEL=1
+export MKL_THREADING_LAYER=GNU
+
+# pth转huggingface
+xtuner convert pth_to_hf \
+  /root/tutorial/xtuner/llava/llava_internlm2_chat_1_8b_qlora_clip_vit_large_p14_336_lora_e1_gpu8_finetune_copy.py \
+  /root/tutorial/xtuner/llava/work_dirs/llava_internlm2_chat_1_8b_qlora_clip_vit_large_p14_336_lora_e1_gpu8_finetune_copy/iter_1200.pth \
+  /root/tutorial/xtuner/llava/llava_data/iter_1200_hf
+
+# 启动！
+xtuner chat /root/share/new_models/Shanghai_AI_Laboratory/internlm2-chat-1_8b \
+  --visual-encoder /root/share/new_models/openai/clip-vit-large-patch14-336 \
+  --llava /root/tutorial/xtuner/llava/llava_data/iter_1200_hf \
+  --prompt-template internlm2_chat \
+  --image /root/tutorial/xtuner/llava/llava_data/test_img/oph.jpg
+```
+  ![](images/image_04_26.png)
