@@ -13,28 +13,18 @@
 ![截图2](images/image_02_06.png)
 ### 作业2
 完成 `浦语·灵笔2` 的 `图文创作` 及 `视觉问答` 部署（需截图）
-![截图3](images/image_02_07png)
-<p style="font-size: 24px; color: red; animation: blink 1s infinite;">
-  等待权限ing。。。
-</p>
-
-<style>
-@keyframes blink {
-  0% { opacity: 1; }
-  50% { opacity: 0; }
-  100% { opacity: 1; }
-}
-</style>
+![截图3](images/image_02_07.png)
+#### 图文创作
+![截图4](images/image_02_08.png)
+![截图5](images/image_02_09.png)
+#### 视觉问答
+![截图5](images/image_02_10.png)
+![截图5](images/image_02_11.png)
+> 这里遇到了问题没有解决：带上图片后就卡死在这个地方了，没有输出。
+```
+init
+<object object at 0x7f7d9d3d2080>
+```
 ### 作业3
 完成 `Lagent` 工具调用 `数据分析` Demo 部署（需截图）
-![截图4](images/image_02_08.png)
-<p style="font-size: 24px; color: red; animation: blink 1s infinite;">
-  等待权限ing。。。
-</p>
-
-<style>
-@keyframes blink {
-  0% { opacity: 1; }
-  50% { opacity: 0; }
-  100% { opacity: 1; }
-}
+![截图4](images/image_02_05.png)
