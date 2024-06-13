@@ -62,7 +62,7 @@ lmdeploy chat -h
 lmdeploy chat /root/internlm2-chat-1_8b
 ```
 
-> 此时**24G**显存几乎全部占满
+> 此时**8G**显存几乎全部占满
 
 ![](images/image_05_05.png)  
 改变--cache-max-entry-count参数，设为0.4。
