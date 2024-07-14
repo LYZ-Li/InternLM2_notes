@@ -1,3 +1,7 @@
+教程链接  
+[GitHub 仓库](https://github.com/InternLM/Tutorial) https://github.com/InternLM/Tutorial
+
+
 你可以使用 Git 在不下载已有分支文件的情况下，将新文件夹的内容推送到一个已存在仓库的新的分支中。以下是具体步骤：
 
 步骤一：初始化本地仓库
